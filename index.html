@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>注音練習本 - 原圖比例版</title>
+    <title>注音練習本 - 座標修正版</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         
@@ -81,16 +81,16 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
 
-        .audio-btn:hover {
-            transform: scale(1.1);
-            background: #FFB1C1;
-        }
-
         .canvas-container {
             position: relative; width: 100%; height: 380px; border: 4px solid #74B9FF; border-radius: 15px; background: white; overflow: hidden;
+            touch-action: none; /* 防止手機繪圖時頁面捲動 */
         }
+        
         canvas { width: 100%; height: 100%; cursor: crosshair; display: block; }
-        .symbol-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 180px; opacity: 0.1; pointer-events: none; }
+        
+        .symbol-watermark {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 180px; opacity: 0.1; pointer-events: none;
+        }
 
         .association-input-area { margin-top: 15px; text-align: center; }
         #associationInput { width: 100%; padding: 12px; font-size: 18px; border-radius: 12px; border: 2px solid #D4A5FF; outline: none; text-align: center; }
@@ -106,14 +106,13 @@
         .reference-area h4 { color: #FF6B9D; margin-bottom: 15px; text-align: center; font-size: 18px; }
 
         .ref-img-container {
-            display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; align-items: flex-start; /* 確保不同高度圖片頂部對齊 */
+            display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; align-items: flex-start;
+            max-width: 600px; margin: 0 auto;
         }
 
-        /* ========== 修正圖片比例的核心 CSS ========== */
         .ref-img-container img {
-            width: auto;  /* 寬度依原圖 */
-            height: auto; /* 高度依原圖 */
-            /* 移除 max-width, max-height, object-fit */
+            width: 45%; 
+            height: auto; 
             border-radius: 12px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
             border: 2px solid white;
@@ -164,7 +163,7 @@
                     <button id="changeColorBtn" style="color:white;">換色</button>
                 </div>
             </div>
-            <div class="canvas-container">
+            <div class="canvas-container" id="canvasContainer">
                 <canvas id="drawingCanvas"></canvas>
                 <div id="symbolWatermark" class="symbol-watermark">ㄅ</div>
             </div>
@@ -223,26 +222,15 @@
 
         const rainbowColors = ["#FF6B9D","#FF8C74","#FDCB6E","#A8E68F","#55EFC4","#74B9FF","#6C5CE7","#B175FF","#FF76C8","#FF5252","#FF9F43","#C7E700","#3EE8D1","#42A5F5","#7E57C2","#EC407A","#FFAB40","#00E676","#00B8D4","#6200EA","#B2FF59","#FFFF00","#FF6E40","#EA80FC","#00BFA5","#D81B60","#1E88E5","#8E24AA","#43A047","#FDD835","#5C6BC0","#26A69A","#FFA000","#F4511E","#9C27B0","#3949AB","#00ACC1"];
 
-        let currentIndex = 0;
-        let userDrawings = {}; 
-        let userAssociations = {}; 
-        let historyStack = []; 
-        let isDrawing = false;
-        let userName = "我";
-        let currentColor = '#FF5252'; 
+        let currentIndex = 0; let userDrawings = {}; let userAssociations = {}; let historyStack = []; 
+        let isDrawing = false; let userName = "我"; let currentColor = '#FF5252'; 
 
-        const canvas = document.getElementById('drawingCanvas');
-        const ctx = canvas.getContext('2d');
+        const canvas = document.getElementById('drawingCanvas'); const ctx = canvas.getContext('2d');
         const associationInput = document.getElementById('associationInput');
         const colorBtn = document.getElementById('changeColorBtn');
 
-        function initColorButton() {
-            colorBtn.style.backgroundColor = currentColor;
-            colorBtn.style.color = 'white';
-        }
-
         function hexToRgba(hex, alpha) {
-            const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+            var r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
             return `rgba(${r}, ${g}, ${b}, ${alpha})`;
         }
 
@@ -254,18 +242,26 @@
 
         function initCanvas() {
             const rect = canvas.getBoundingClientRect();
-            canvas.width = rect.width; canvas.height = rect.height;
+            // 設定畫布內部解析度與 CSS 大小一致
+            canvas.width = rect.width; 
+            canvas.height = rect.height;
+            
             historyStack = []; 
             if (userDrawings[bopomofoData[currentIndex].symbol]) {
                 const img = new Image();
                 img.src = userDrawings[bopomofoData[currentIndex].symbol];
-                img.onload = () => { ctx.drawImage(img, 0, 0); saveState(); };
-            } else { saveState(); }
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    saveState();
+                };
+            } else {
+                saveState();
+            }
         }
 
         function saveState() {
             historyStack.push(canvas.toDataURL());
-            if (historyStack.length > 20) historyStack.shift();
+            if (historyStack.length > 25) historyStack.shift();
         }
 
         function undo() {
@@ -275,30 +271,59 @@
                 img.src = historyStack[historyStack.length - 1];
                 img.onload = () => {
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(img, 0, 0);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                     userDrawings[bopomofoData[currentIndex].symbol] = canvas.toDataURL();
                 };
             }
         }
 
+        // ========== 修正後的座標獲取函式 ==========
         function getPoint(e) {
             const rect = canvas.getBoundingClientRect();
-            const x = e.touches ? e.touches[0].clientX - rect.left : e.offsetX;
-            const y = e.touches ? e.touches[0].clientY - rect.top : e.offsetY;
-            return { x, y };
+            let clientX, clientY;
+            
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+
+            // 計算縮放比例，防止 CSS 縮放導致位移
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
         }
 
         canvas.onmousedown = canvas.ontouchstart = (e) => {
-            e.preventDefault(); isDrawing = true;
-            const { x, y } = getPoint(e); ctx.beginPath(); ctx.moveTo(x, y);
+            e.preventDefault();
+            isDrawing = true;
+            const { x, y } = getPoint(e);
+            ctx.beginPath();
+            ctx.moveTo(x, y);
         };
+
         canvas.onmousemove = canvas.ontouchmove = (e) => {
             if (!isDrawing) return;
-            const { x, y } = getPoint(e); ctx.lineTo(x, y);
-            ctx.strokeStyle = currentColor; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.stroke();
+            e.preventDefault();
+            const { x, y } = getPoint(e);
+            ctx.lineTo(x, y);
+            ctx.strokeStyle = currentColor;
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
         };
-        canvas.onmouseup = canvas.ontouchend = () => {
-            if (!isDrawing) return; isDrawing = false; saveState();
+
+        canvas.onmouseup = canvas.ontouchend = canvas.onmouseleave = () => {
+            if (!isDrawing) return;
+            isDrawing = false;
+            saveState();
             userDrawings[bopomofoData[currentIndex].symbol] = canvas.toDataURL();
         };
 
@@ -319,7 +344,8 @@
         associationInput.oninput = () => { userAssociations[bopomofoData[currentIndex].symbol] = associationInput.value; };
         document.getElementById('undoBtn').onclick = undo;
         document.getElementById('clearBtn').onclick = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height); saveState();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            saveState();
             delete userDrawings[bopomofoData[currentIndex].symbol];
         };
         
@@ -334,23 +360,18 @@
             document.getElementById('home-screen').style.display = 'none';
             document.getElementById('learning-screen').style.display = 'block';
             document.getElementById('learningTitle').textContent = `${userName}ㄉ注音練習本`;
-            initColorButton();
+            colorBtn.style.backgroundColor = currentColor; colorBtn.style.color = 'white';
             updatePage();
         };
 
-        document.getElementById('nextBtn').onclick = () => { 
-            if (currentIndex < bopomofoData.length - 1) { 
-                currentIndex++; updatePage(); 
-            } else { showResult(); } 
-        };
+        document.getElementById('nextBtn').onclick = () => { if (currentIndex < bopomofoData.length - 1) { currentIndex++; updatePage(); } else { showResult(); } };
         document.getElementById('prevBtn').onclick = () => { if (currentIndex > 0) { currentIndex--; updatePage(); } };
 
         function showResult() {
             document.getElementById('learning-screen').style.display = 'none';
             document.getElementById('result-screen').style.display = 'block';
             document.getElementById('finalTitle').textContent = `${userName}ㄉ注音符號表`;
-            const grid = document.getElementById('resultGrid');
-            grid.innerHTML = '';
+            const grid = document.getElementById('resultGrid'); grid.innerHTML = '';
             bopomofoData.forEach((d, i) => {
                 const item = document.createElement('div');
                 item.className = 'result-item';
@@ -369,49 +390,24 @@
             const c = document.createElement('canvas'); const ctx2 = c.getContext('2d');
             const cell = 220; const cols = 6; const rows = Math.ceil(37/cols);
             c.width = cols * cell + 60; c.height = rows * cell + 220;
-            
             const grd = ctx2.createRadialGradient(c.width/2, c.height/2, 100, c.width/2, c.height/2, c.width);
-            grd.addColorStop(0, "#FFFFFF");   
-            grd.addColorStop(0.2, "#FFF0F6"); 
-            grd.addColorStop(0.4, "#F0F9FF"); 
-            grd.addColorStop(0.6, "#FFF9E6"); 
-            grd.addColorStop(0.8, "#F3E8FF"); 
-            grd.addColorStop(1, "#E6FFF3");   
-            ctx2.fillStyle = grd;
-            ctx2.fillRect(0, 0, c.width, c.height);
-            
+            grd.addColorStop(0, "#FFFFFF"); grd.addColorStop(0.2, "#FFF0F6"); grd.addColorStop(0.4, "#F0F9FF"); grd.addColorStop(0.6, "#FFF9E6"); grd.addColorStop(0.8, "#F3E8FF"); grd.addColorStop(1, "#E6FFF3");   
+            ctx2.fillStyle = grd; ctx2.fillRect(0, 0, c.width, c.height);
             ctx2.fillStyle = '#6C5CE7'; ctx2.font = 'bold 45px Arial'; ctx2.textAlign = 'center';
             ctx2.fillText(`${userName}ㄉ注音符號表`, c.width/2, 80);
 
             let loaded = 0;
             const totalToLoad = bopomofoData.filter(d => userDrawings[d.symbol]).length;
-
             bopomofoData.forEach((d, i) => {
                 const x = (i % cols) * cell + 30; const y = Math.floor(i / cols) * cell + 130;
-                
-                ctx2.fillStyle = hexToRgba(rainbowColors[i], 0.2); 
-                ctx2.beginPath();
-                if (ctx2.roundRect) ctx2.roundRect(x, y, cell-15, cell-15, 20);
-                else ctx2.rect(x, y, cell-15, cell-15);
-                ctx2.fill();
-
-                ctx2.textAlign = 'center';
-                ctx2.fillStyle = rainbowColors[i]; ctx2.font = 'bold 38px Arial';
-                ctx2.fillText(d.symbol, x + (cell-15)/2, y + 45);
-                
-                ctx2.fillStyle = '#444'; ctx2.font = '16px Arial';
-                ctx2.fillText(d.pinyin, x + (cell-15)/2, y + 75);
-
-                ctx2.fillStyle = '#333'; ctx2.font = 'bold 15px Arial';
-                ctx2.fillText(userAssociations[d.symbol] || '', x + (cell-15)/2, y + cell - 20);
-
+                ctx2.fillStyle = hexToRgba(rainbowColors[i], 0.2); ctx2.beginPath();
+                if (ctx2.roundRect) ctx2.roundRect(x, y, cell-15, cell-15, 20); else ctx2.rect(x, y, cell-15, cell-15);
+                ctx2.fill(); ctx2.textAlign = 'center'; ctx2.fillStyle = rainbowColors[i]; ctx2.font = 'bold 38px Arial'; ctx2.fillText(d.symbol, x + (cell-15)/2, y + 45);
+                ctx2.fillStyle = '#444'; ctx2.font = '16px Arial'; ctx2.fillText(d.pinyin, x + (cell-15)/2, y + 75);
+                ctx2.fillStyle = '#333'; ctx2.font = 'bold 15px Arial'; ctx2.fillText(userAssociations[d.symbol] || '', x + (cell-15)/2, y + cell - 20);
                 if (userDrawings[d.symbol]) {
                     const img = new Image(); img.src = userDrawings[d.symbol];
-                    img.onload = () => {
-                        ctx2.drawImage(img, x+15, y+85, cell-45, cell-135);
-                        loaded++;
-                        if (loaded === totalToLoad) finishDownload(c);
-                    };
+                    img.onload = () => { ctx2.drawImage(img, x+15, y+85, cell-45, cell-135); loaded++; if (loaded === totalToLoad) finishDownload(c); };
                 } else if (totalToLoad === 0 && i === 36) finishDownload(c);
             });
             if (totalToLoad === 0) finishDownload(c);
@@ -421,15 +417,11 @@
             const ctx2 = c.getContext('2d');
             ctx2.fillStyle = '#999'; ctx2.font = 'bold 18px Arial'; ctx2.textAlign = 'center';
             ctx2.fillText('版權所有 © 布魯托王 | Copyright by Pluto Wang', c.width/2, c.height - 35);
-            const a = document.createElement('a'); a.download = `${userName}_注音符號表.png`; a.href = c.toDataURL(); a.click();
+            const link = document.createElement('a'); link.download = `${userName}_注音符號表.png`; link.href = c.toDataURL(); link.click();
         }
 
-        CanvasRenderingContext2D.prototype.fillRoundedRect = function(x, y, w, h, r) {
-            this.beginPath(); this.moveTo(x+r, y); this.arcTo(x+w, y, x+w, y+h, r); this.arcTo(x+w, y+h, x, y+h, r); this.arcTo(x, y+h, x, y, r); this.arcTo(x, y, x+w, y, r); this.closePath(); this.fill();
-        };
-
-        document.getElementById('restartBtn').onclick = () => location.reload();
         window.onresize = initCanvas;
+        document.getElementById('restartBtn').onclick = () => location.reload();
     </script>
 </body>
 </html>
